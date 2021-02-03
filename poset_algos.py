@@ -1,7 +1,7 @@
-# poset algorithms from "Sorting and Selection in Posets" by Daskalakis et al.
-# The mergesort is of most interest, and has better complexity when the poset width grows slower than sqrt(poset size)
-# Currently, only the mergesort is implemented.
-# The rest have no known efficient implementation yet, but I'll look into them.
+# Poset algorithms from "Sorting and Selection in Posets" by Daskalakis et al. Currently only the mergesort is
+# implemented, along with some other stuff that makes ChainMerge a usable, mutable class. Also, I have included my own
+# structure, PosetGraph, which is the equivalent of a sorted linked list for posets. It has a couple benefits ChainMerge
+# does not, so it may be of interest to hybridize the two structures.
 
 # A class that implements a set of doubly linked lists.
 class LinkedLists:
@@ -230,7 +230,7 @@ class ChainDecomp:
 
     def _find_pair(self, L, chain_copies):
         while len(L) > 0:
-            i, j = L.pop()
+            i, j = L._pop()
             i_num = chain_copies.tops[i]
             j_num = chain_copies.tops[j]
             x, y = chain_copies.dict[i_num][0], chain_copies.dict[j_num][0]
@@ -314,9 +314,9 @@ class ChainDecomp:
 
     def __getitem__(self, key): return self._chains[key[0]][key[1]]
 
-    def pop(self, chain_num, pos):
+    def _pop(self, chain_num, pos):
         chain = self._chains[chain_num]
-        return chain.pop(pos)
+        return chain._pop(pos)
 
     def copy(self):
         copy = type(self)([], self.comp)
@@ -397,7 +397,7 @@ class ChainDecomp:
         if rets[0]:
             raise ValueError("Value not in poset")
         else:
-            self.pop(rets[1], rets[2])
+            self._pop(rets[1], rets[2])
 
     def discard(self, value):
         try:
@@ -672,8 +672,8 @@ class ChainMerge(ChainDecomp):
                 #   complexity, but it reduced the average query complexity to O(w * number of elements not comparable
                 #   to value), I think.
 
-    def pop(self, chain_num, pos):
-        ret = super().pop(chain_num, pos)
+    def _pop(self, chain_num, pos):
+        ret = super()._pop(chain_num, pos)
         self.dominance.pop(ret)
         self.submission.pop(ret)
         for doms in self.dominance.values():
@@ -744,9 +744,6 @@ class ChainMerge(ChainDecomp):
         copy.dominance = {k: v.copy() for k, v in self.dominance.items()}
         copy.submission = {k: v.copy() for k, v in self.submission.items()}
         return copy
-
-    def remove(self, value):
-        pass
 
     def _reorder_chains(self, chain_permutation):
         permute = super()._reorder_chains(chain_permutation)
