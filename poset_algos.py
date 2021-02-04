@@ -230,7 +230,7 @@ class ChainDecomp:
 
     def _find_pair(self, L, chain_copies):
         while len(L) > 0:
-            i, j = L._pop()
+            i, j = L.pop()
             i_num = chain_copies.tops[i]
             j_num = chain_copies.tops[j]
             x, y = chain_copies.dict[i_num][0], chain_copies.dict[j_num][0]
@@ -812,6 +812,7 @@ class PosetGraph:
     def _check_non_transitive(self):
         self._check_edges_less()
 
+        # Just realized this isn't correct: What if there are two vertices between connected parent and child?
         for vertex in self.values:
             for parent in self.edges[vertex]:
                 for child in self.reversed_edges[vertex]:
@@ -952,8 +953,8 @@ if __name__ == '__main__':
 
     import time as t
     import math as m
-    rand_pts = get_rand_points(3, 100)
-    rand_pts_2 = get_rand_points(3, 100)
+    rand_pts = get_rand_points(3, 1000)
+    rand_pts_2 = get_rand_points(3, 1000)
     merge = ChainMerge(rand_pts, point_dominance)
     for point in rand_pts_2:
         merge.add(point)
