@@ -140,10 +140,7 @@ class ChainDecomp:
             self._chains = [*first_decomp._chains, *second_decomp._chains]
         else:
             self._chains = [[value] for value in values]
-        if reduce:
-            self._peeling_reduction()
-        else:
-            self._peeling()
+        self._peeling()
 
     @property
     def _chains(self):
@@ -168,38 +165,6 @@ class ChainDecomp:
         
         except StopIteration:
             self._chains = list(chain_links)
-
-    def _peeling_reduction(self):
-        chain_links = LinkedLists(self._chains)
-        new_tops = chain_links.tops
-        parent_chains = dict.fromkeys(chain_links.tops, None)
-        while True:
-            chain_links.tops = new_tops
-
-            try:
-                while True:
-                    subseq = self._peeling_iteration(chain_links)
-                    double_parents = subseq[0][0]
-                    parent_chains.pop(double_parents)
-
-            except StopIteration:
-                pass
-            old_tops = new_tops
-            chain_links.link(*parent_chains.items())
-
-            new_tops = []
-            parent_chains = {}
-            for i, top in enumerate(old_tops):
-                next_top = chain_links.dict[top][1]
-                if next_top is not None:
-                    chain_links.dict[top][1] = None
-                    chain_links.dict[next_top][2] = None
-                    new_tops.append(next_top)
-                    parent_chains[next_top] = top
-            if len(new_tops) == 0:
-                break
-
-        self._chains = list(chain_links)
 
     def _peeling_iteration(self, links, start_chain=0):
         chain_copies = links.copy()
