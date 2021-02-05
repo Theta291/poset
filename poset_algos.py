@@ -312,8 +312,6 @@ class ChainDecomp:
                 raise ValueError(f"self.chains[{i}] is not ascending")
         return True
 
-    def __getitem__(self, key): return self._chains[key[0]][key[1]]
-
     def _pop(self, chain_num, pos):
         chain = self._chains[chain_num]
         return chain._pop(pos)
@@ -385,10 +383,13 @@ class ChainDecomp:
                 return 2,
 
             else:
-                self._chains[insert].insert(pos, value)
+                self._insert(value, insert, pos, doms, subs)
                 return 1, doms, subs, insert
         else:
             return 0,
+
+    def _insert(self, value, chain_num, pos, doms, subs):
+        self._chains[chain_num].insert(pos, value)
 
     def __contains__(self, value): return value in self._values
 
@@ -525,21 +526,21 @@ class ChainMerge(ChainDecomp):
         if self._width > 0:
             self._establish_dominance()
         else:
-            self.dominance = {}
-            self.submission = {}
+            self._dominance = {}
+            self._submission = {}
 
     def _establish_dominance(self):
         width = self._width
-        self.dominance = {value: [0 for i in range(width)] for value in self._values}
-        self.submission = {value: [len(chain)-1 for chain in self._chains] for value in self._values}  # Maybe can make
+        self._dominance = {value: [0 for i in range(width)] for value in self._values}
+        self._submission = {value: [len(chain) - 1 for chain in self._chains] for value in self._values}  # Maybe can make
         # something more efficient?
         for i in range(width):
             chain1 = self._chains[i]
             for j in range(width):
                 if i == j:
                     for n, v in enumerate(chain1):
-                        self.dominance[v][i] = n
-                        self.submission[v][i] = n+1
+                        self._dominance[v][i] = n
+                        self._submission[v][i] = n + 1
                 else:
                     chain2 = self._chains[j]
                     self._set_dominance(chain1, chain2, j)
@@ -558,7 +559,7 @@ class ChainMerge(ChainDecomp):
                     j = chain2_len
                     break
                     # Can break out of both loops here. Might be slightly faster.
-            self.dominance[x][chain2_num] = j-1
+            self._dominance[x][chain2_num] = j - 1
 
     def _set_submission(self, chain1, chain2, chain2_num):
         j = len(chain2)-1
@@ -571,12 +572,12 @@ class ChainMerge(ChainDecomp):
                     break
                 else:
                     y = chain2[j]
-            self.submission[x][chain2_num] = j+1
+            self._submission[x][chain2_num] = j + 1
 
     def _check_dom_sub(self):
         self._check_chains()
 
-        for val, doms in self.dominance.items():
+        for val, doms in self._dominance.items():
             for chain_num, greatest_dom in enumerate(doms):
                 chain = self._chains[chain_num]
                 dom_str = f"self.dominance[{val}][{chain_num}]"
@@ -599,7 +600,7 @@ class ChainMerge(ChainDecomp):
                     if greatest_dom < -1:
                         raise ValueError(f"{dom_str} < -1")
 
-        for val, subs in self.submission.items():
+        for val, subs in self._submission.items():
             for chain_num, least_sub in enumerate(subs):
                 chain = self._chains[chain_num]
                 sub_str = f"self.submission[{val}][{chain_num}]"
@@ -630,23 +631,14 @@ class ChainMerge(ChainDecomp):
             if flag % 2:
                 doms, subs, insert = rets
                 if flag == 1:
-                    self.dominance[value] = doms
-                    self.submission[value] = subs
-                    for dom, sub, chain in zip(doms, subs, self._chains):
-                        for i, elem in enumerate(chain):
-                            if i <= dom:
-                                pass  # Can probably do something to avoid iterating over these, saving a little time.
-                            else:
-                                self.submission[elem][insert] += 1
-                                if i >= sub:
-                                    self.dominance[elem][insert] += 1
+                    self._insert_helper(value, insert, doms, subs)
                 elif flag == 3:
-                    self.dominance[value] = []
-                    self.submission[value] = []
+                    self._dominance[value] = []
+                    self._submission[value] = []
                     for dom, sub, chain in zip(doms, subs, self._chains):
                         for i, elem in enumerate(chain):
-                            elem_doms = self.dominance[elem]
-                            elem_subs = self.submission[elem]
+                            elem_doms = self._dominance[elem]
+                            elem_subs = self._submission[elem]
                             if i <= dom:
                                 elem_subs.append(0)
                                 elem_doms.append(-1)
@@ -656,10 +648,10 @@ class ChainMerge(ChainDecomp):
                             else:
                                 elem_doms.append(-1)
                                 elem_subs.append(1)
-                    self.dominance[value] = doms
-                    self.submission[value] = subs
-                    self.dominance[value][insert] = 0
-                    self.submission[value][insert] = 1
+                    self._dominance[value] = doms
+                    self._submission[value] = subs
+                    self._dominance[value][insert] = 0
+                    self._submission[value][insert] = 1
             elif flag == 2:
                 self._establish_dominance()
                 # I did all the work to avoid a full peel to remove the average case O(wn) from peeling,
@@ -672,14 +664,30 @@ class ChainMerge(ChainDecomp):
                 #   complexity, but it reduced the average query complexity to O(w * number of elements not comparable
                 #   to value), I think.
 
+    def _insert(self, value, chain_num, pos, doms, subs):
+        super()._insert(value, chain_num, pos, doms, subs)
+        self._insert_helper(value, chain_num, doms, subs)
+
+    def _insert_helper(self, value, chain_num, doms, subs):
+        self._dominance[value] = doms
+        self._submission[value] = subs
+        for dom, sub, chain in zip(doms, subs, self._chains):
+            for i, elem in enumerate(chain):
+                if i <= dom:
+                    pass  # Can probably do something to avoid iterating over these, saving a little time.
+                else:
+                    self._submission[elem][chain_num] += 1
+                    if i >= sub:
+                        self._dominance[elem][chain_num] += 1
+
     def _pop(self, chain_num, pos):
         ret = super()._pop(chain_num, pos)
-        self.dominance.pop(ret)
-        self.submission.pop(ret)
-        for doms in self.dominance.values():
+        self._dominance.pop(ret)
+        self._submission.pop(ret)
+        for doms in self._dominance.values():
             if doms[chain_num] >= pos:
                 doms[chain_num] -= 1
-        for subs in self.submission.values():
+        for subs in self._submission.values():
             if subs[chain_num] >= pos:
                 subs[chain_num] -= 1
         return ret
@@ -714,7 +722,7 @@ class ChainMerge(ChainDecomp):
                 # i.e. other_bound[1] == other_bound[0] + 1
                 #   A little testing (n = 1000) has shown that this case is rarer than I thought (0.3% incidence).
                 if greatest_dom > -1:
-                    greatest_dom_doms = self.dominance[chain[greatest_dom]]
+                    greatest_dom_doms = self._dominance[chain[greatest_dom]]
                     for j in range(i, num_update(i)):
                         other_bound = bounds[j]
                         other_bound[0] = max(greatest_dom_doms[j], other_bound[0])
@@ -723,7 +731,7 @@ class ChainMerge(ChainDecomp):
                 subs.append(least_sub)
 
                 if least_sub < len(chain):
-                    least_sub_subs = self.submission[chain[least_sub]]
+                    least_sub_subs = self._submission[chain[least_sub]]
                     for j in range(i+1, num_update(i)):
                         other_bound = bounds[j]
                         other_bound[0] = min(least_sub_subs[j], other_bound[0])
@@ -739,18 +747,24 @@ class ChainMerge(ChainDecomp):
         else:
             return super()._search_dom_sub(value)
 
-    def copy(self):
-        copy = super().copy()
-        copy.dominance = {k: v.copy() for k, v in self.dominance.items()}
-        copy.submission = {k: v.copy() for k, v in self.submission.items()}
-        return copy
-
     def _reorder_chains(self, chain_permutation):
         permute = super()._reorder_chains(chain_permutation)
-        for k, v in self.dominance.items():
-            self.dominance[k] = permute(v)
-        for k, v in self.submission.items():
-            self.submission[k] = permute(v)
+        for k, v in self._dominance.items():
+            self._dominance[k] = permute(v)
+        for k, v in self._submission.items():
+            self._submission[k] = permute(v)
+
+    def copy(self):
+        copy = super().copy()
+        copy.dominance = {k: v.copy() for k, v in self._dominance.items()}
+        copy.submission = {k: v.copy() for k, v in self._submission.items()}
+        return copy
+
+    def __len__(self):
+        return self._size
+
+    def __iter__(self):
+        return iter(self._values)
 
 
 # Graph structure for storing posets with a relationship graph.
@@ -930,7 +944,7 @@ class PosetGraph:
             pass
 
     # This search is worst case O(n) (If the poset is one chain and you search the max element.)
-    def search(self, value):
+    def less_than(self, value):
         less_than = self._find_neighbors(value)
         less_than.discard(self.least)
         return less_than
@@ -951,10 +965,10 @@ if __name__ == '__main__':
     def get_rand_point(dim): return tuple(r.random() for i in range(dim))
     def get_rand_points(dim, num): return [get_rand_point(dim) for i in range(num)]
 
-    import time as t
-    import math as m
-    rand_pts = get_rand_points(3, 1000)
-    rand_pts_2 = get_rand_points(3, 1000)
+    # import time as t
+    # import math as m
+    rand_pts = get_rand_points(3, 100)
+    rand_pts_2 = get_rand_points(3, 100)
     merge = ChainMerge(rand_pts, point_dominance)
     for point in rand_pts_2:
         merge.add(point)
