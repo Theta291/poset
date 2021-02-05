@@ -314,7 +314,7 @@ class ChainDecomp:
 
     def _pop(self, chain_num, pos):
         chain = self._chains[chain_num]
-        return chain._pop(pos)
+        return chain.pop(pos)
 
     def copy(self):
         copy = type(self)([], self.comp)
@@ -521,8 +521,8 @@ class ChainDecomp:
 
 
 class ChainMerge(ChainDecomp):
-    def __init__(self, values, comp=None, reduce=False):
-        super().__init__(values, comp, reduce)
+    def __init__(self, values, comp=None):
+        super().__init__(values, comp)
         if self._width > 0:
             self._establish_dominance()
         else:
@@ -687,9 +687,10 @@ class ChainMerge(ChainDecomp):
         for doms in self._dominance.values():
             if doms[chain_num] >= pos:
                 doms[chain_num] -= 1
-        for subs in self._submission.values():
-            if subs[chain_num] >= pos:
+        for elem, subs in self._submission.items():
+            if subs[chain_num] > pos:
                 subs[chain_num] -= 1
+
         return ret
 
     def _search_dom_sub(self, value, search_update=False):
@@ -766,6 +767,26 @@ class ChainMerge(ChainDecomp):
     def __iter__(self):
         return iter(self._values)
 
+    def _naive_reduction(self):
+        while True:
+            try:
+                for i, chain in enumerate(self._chains):
+                    for n, elem in enumerate(chain):
+                        doms = self._dominance[elem]
+                        subs = self._submission[elem]
+                        for j, other in enumerate(self._chains):
+                            if len(other) >= len(chain) and j != i:
+                                dom = doms[j]
+                                sub = subs[j]
+                                if sub == dom + 1:
+                                    self._pop(i, n)
+                                    doms[i] -= 1
+                                    subs[i] -= 1
+                                    self._insert(elem, j, sub, doms, subs)
+                                    raise StopIteration
+                break
+            except StopIteration:
+                continue
 
 # Graph structure for storing posets with a relationship graph.
 # Reduces the number of edges in a chain length from (sum 1 to n-1) to n-1
@@ -950,7 +971,7 @@ class PosetGraph:
         return less_than
 
 
-Sentinel = type('Sentinel', (object,), {})
+class Sentinel: pass
 
 if __name__ == '__main__':
     def point_dominance(point1, point2):
@@ -966,9 +987,15 @@ if __name__ == '__main__':
     def get_rand_points(dim, num): return [get_rand_point(dim) for i in range(num)]
 
     # import time as t
-    # import math as m
+    import math as m
     rand_pts = get_rand_points(3, 100)
-    rand_pts_2 = get_rand_points(3, 100)
+    # rand_pts_2 = get_rand_points(3, 100)
     merge = ChainMerge(rand_pts, point_dominance)
-    for point in rand_pts_2:
-        merge.add(point)
+
+    def get_lens(a): return [len(chain) for chain in a._chains]
+    def get_logs(a_list): return sum([m.log(n) for n in a_list])
+    start_lens = get_lens(merge)
+    start_logs = get_logs(start_lens)
+    merge._naive_reduction()
+    end_lens = get_lens(merge)
+    end_logs = get_logs(end_lens)
